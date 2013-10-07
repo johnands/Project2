@@ -1,0 +1,320 @@
+\documentclass[a4paper,12pt, english]{article}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{graphicx}
+\usepackage{babel}
+\usepackage{amsmath}
+\usepackage{ulem}
+\usepackage{a4wide}
+\usepackage{graphicx}
+\usepackage{listings}
+\usepackage{tabularx}
+\usepackage{tabulary}
+
+\title{FYS3150 - Prosjekt 2}
+\author{John-Anders Stende}
+
+\begin{document}
+
+\section*{Introduction}
+
+In this project we're going to use Jacobi's eigenvalue algorithm to solve Schr\"odinger's equation for two 
+electrons in a three-dimensional harmonic oscillator well with and without a repulsive Coulomb interaction.
+
+To do this, we have to discretize Schr\"odinger's equation and write it as an eigenvalue equation. We assume 
+spherical symmetry. For one electron the radial part of Schr\"odinger's equation reads
+\[
+  -\frac{\hbar^2}{2 m} \left ( \frac{1}{r^2} \frac{d}{dr} r^2
+  \frac{d}{dr} - \frac{l (l + 1)}{r^2} \right )R(r) 
+     + V(r) R(r) = E R(r).
+\]
+In our case $V(r)$ is the harmonic oscillator potential $(1/2)kr^2$ with
+$k=m\omega^2$ where $\omega$ is the oscillator frequency and $E$ is
+the energy of the harmonic oscillator in three dimensions. The quantum number $l$ is the orbital
+momentum of the electron. In this project we set $l = 0$.
+
+To write the equation in a more suitable form we substitute 
+$R(r) = (1/r) u(r)$ and $\rho = (1/\alpha) r$ where $\alpha$ is a constant with dimension length,
+$\rho$ is therefore a dimensionless variable. 
+If we also insert $l=0$ and $V(\rho) = (1/2) k \alpha^2\rho^2$ and multiply with 
+$2m\alpha^2/\hbar^2$ on both sides we end up with
+\[
+  -\frac{d^2}{d\rho^2} u(\rho) 
+       + \frac{mk}{\hbar^2} \alpha^4\rho^2u(\rho)  = \frac{2m\alpha^2}{\hbar^2}E u(\rho) .
+\]
+We fix the constant $\alpha$ in the following way:
+\[
+\frac{mk}{\hbar^2} \alpha^4 = 1,
+\]
+or 
+\[
+\alpha = \left(\frac{\hbar^2}{mk}\right)^{1/4}.
+\]
+Defining 
+\[
+\lambda = \frac{2m\alpha^2}{\hbar^2}E,
+\]
+we can rewrite Schr\"odinger's equation as
+\[
+  -\frac{d^2}{d\rho^2} u(\rho) + \rho^2u(\rho)  = \lambda u(\rho) .
+\]
+We then discretize the equation with the step length $h$ given by
+\[
+  h=\frac{\rho_{\mathrm{max}}-\rho_{\mathrm{min}} }{n_{\mathrm{step}}}.
+\]
+where $\rho_{\mathrm{min}}=0$ and $\rho_{\mathrm{max}}$ needs to be set to a fitting value.
+If we insert the standard expression for the second derivate of a function u,
+the discretized version of the equation becomes
+\[
+-\frac{u_{i+1} -2u_i +u_{i-1}}{h^2}+\rho_i^2u_i=-\frac{u_{i+1} -2u_i +u_{i-1} }{h^2}+V_iu_i  = \lambda u_i,
+\]
+where $V_i=\rho_i^2$ is the harmonic oscillator potential.
+To write this as a an eigenvalue problem we define the diagonal matrix element
+\[
+   d_i=\frac{2}{h^2}+V_i,
+\]
+and the non-diagonal matrix element 
+\[
+   e_i=-\frac{1}{h^2}.
+\]
+which when inserted in the equation becomes
+\[
+d_iu_i+e_{i-1}u_{i-1}+e_{i+1}u_{i+1}  = \lambda u_i,
+\]
+Finally we can write the Schr\"odinger equation as an eigenvalue problem:
+\begin{equation}
+    \left( \begin{array}{ccccccc} d_1 & e_1 & 0   & 0    & \dots  &0     & 0 \\
+                                e_1 & d_2 & e_2 & 0    & \dots  &0     &0 \\
+                                0   & e_2 & d_3 & e_3  &0       &\dots & 0\\
+                                \dots  & \dots & \dots & \dots  &\dots      &\dots & \dots\\
+                                0   & \dots & \dots & \dots  &\dots       &d_{n_{\mathrm{step}}-2} & e_{n_{\mathrm{step}}-1}\\
+                                0   & \dots & \dots & \dots  &\dots       &e_{n_{\mathrm{step}}-1} & d_{n_{\mathrm{step}}-1}
+
+             \end{array} \right)      \left( \begin{array}{c} u_{1} \\
+                                                              u_{2} \\
+                                                              \dots\\ \dots\\ \dots\\
+                                                              u_{n_{\mathrm{step}}-1}
+             \end{array} \right)=\lambda \left( \begin{array}{c} u_{1} \\
+                                                              u_{2} \\
+                                                              \dots\\ \dots\\ \dots\\
+                                                              u_{n_{\mathrm{step}}-1}
+             \end{array} \right) 
+      \label{eq:sematrix}
+\end{equation} 
+Boundary conditions: $u = 0$ in both ends, ie. for $i = 0$ and $i = n_{\mathrm{step}}$.
+
+\section*{Algorithm}
+Jacobi's algorithm solves this eigenvalue problem by doing a series of similarity transformations
+on the matrix above, which I'll call ${\bf A}$. When ${\bf A}$ is real and symmetric as in this
+case, linear algebra says that there exists an orthogonal matrix ${\bf S}$ so that
+\[
+   {\bf S}^T {\bf A} {\bf S} = diag(\lambda_1, ... ,\lambda_n)
+\]
+and we end up with ${\bf A}$ containing its eigenvalues on the diagonal.
+
+The algorithm's task is therefore to transform A into a (nearly) diagonal matrix. 
+That can be obtained by reducing the Frobenius norm of the off-diagonal elements of A
+with every transformation until the norm is less than a given tolerance $\epsilon$. 
+The transformation matrix ${\bf S}$ used to do this is called a Givens rotation matrix, which
+have the following properties
+\[
+s_{kk} = s_{ll} = \cos\theta,\ s_{kl} = -s_{lk} = -\sin\theta,\ s_{ii} = -s_{ii} = 1\ for\  i \neq k\ and\ i \neq l
+\]
+A rotation ${\bf B} = {\bf S}^T {\bf A} {\bf S}$ transforms the off-diagonal elements
+in the following way (and also ensures that $||{\bf B}||_F^2 < ||{\bf A}||_F^2$)
+\[
+b_{kl} = (a_{kk}-a_{ll}) \cos\theta \sin\theta + a_{kl}(\cos^2\theta-\sin^2\theta)
+\]
+The recipe is now to choose $\theta$ so that all $b_{kl}$ become zero. If we set this equation equal to zero 
+and define 
+$\tan\theta = t= s/c$, with $s=\sin\theta$ and $c=\cos\theta$ we end up with
+(using $\cos^2\theta - \sin^2\theta = \cos2\theta$ and $\cos\theta\sin\theta = (1/2)\sin2\theta$)
+\[
+\cot 2\theta=\tau = \frac{a_{ll}-a_{kk}}{2a_{kl}}.
+\]
+and then using $\cot 2\theta=1/2(\cot \theta-\tan\theta)$ we obtain the quadratic equation
+\[
+t^2+2\tau t-1= 0,
+\]
+resulting in 
+\[
+  t = -\tau \pm \sqrt{1+\tau^2},
+\]
+and $c$ and $s$ are easily obtained via
+\[
+   c = \frac{1}{\sqrt{1+t^2}},
+\]
+and $s=tc$. We should choose t to be the smaller of the roots since this maximizes c, which in turn minimizes
+the difference between the Frobenius norm of ${\bf B}$ and ${\bf A}$
+\[
+||{\bf B}-{\bf A}||_F^2=4(1-c)\sum_{i=1,i\ne k,l}^n(a_{ik}^2+a_{il}^2) +\frac{2a_{kl}^2}{c^2}.
+\]
+The algorithm can be implemented as a while-test where we compare the norm of the newly computed off-diagonal
+matrix elements with $\epsilon$. This can however be replaced by the simpler test $max(a^2_{ij} > \epsilon$.
+For each iteration we therefore find the off-diagonal element with largest absolute value and use this
+to compute $t$, $c$ and $s$ so that we can rotate matrix ${\bf A}$ until the test above is fulfilled. 
+
+\section*{Results for one electron}
+To verify the results we compare them with the analytic solution for the energies of one electron in a 3d 
+harmonic
+oscillator potential. The energies are
+\[
+E_{nl}=  \hbar \omega \left(2n+l+\frac{3}{2}\right),
+\]
+with $n=0,1,2,\dots$ and $l=0,1,2,\dots$.
+For $l = 0$ and according to our definition of $\lambda$ the eigenvalues are 
+\[
+\lambda_0=3,\ \lambda_1=7,\ \lambda_2=11,\ \dots 
+\]
+When I set $\rho_{\mathrm{max}} = 4.5$ and compile my script c++ main.cpp -larmadillo -llapack -lblas
+I get the following results for the three lowest eigenvalues (printed to terminal):
+
+n = 50; Time elapsed Arma: 0; Eigenvalues Arma: 2.99757, 6.98794, 10.9759; Time elapsed Jacobi: 0;
+Eigenvalues Jacobi: 2.99757, 6.98794, 10.9759; Number of iterations: 4070
+
+n = 100; Time elapsed Arma: 0; Eigenvalues Arma: 2.99938, 6.99702, 10.9981; Time elapsed Jacobi: 2;
+Eigenvalues Jacobi: 2.99938, 6.99702, 10.9981; Number of iterations: 16563
+
+n = 150; Time elapsed Arma: 0; Eigenvalues Arma: 2.99972, 6.99874, 11.0023; Time elapsed Jacobi: 12;
+Eigenvalues Jacobi: 2.99972, 6.99874, 11.0023; Number of iterations: 37382
+
+n = 200; Time elapsed Arma: 0; Eigenvalues Arma: 2.99984, 6.99934, 11.0038; Time elapsed Jacobi: 38;
+Eigenvalues Jacobi: 2.99984, 6.99934, 11.0038; Number of iterations: 66935
+
+I've compared the eigenvalues obtained by Jacobi's algorithm to the ones obtained by the Armadillo 
+function eig_sym for different $n$ (dimension of matrix ${\bf A}$). We see that both algorithms creates the 
+exact
+same eigenvalues for each $n$, which suggests that my algorithm works well. For $n = 100$ and $n = 150$ 
+the eigenvalues 
+have four leading digits except $\lambda_1$, which has three. For $n = 200$ however, all the 
+eigenvalues have four
+correct digits. 
+
+The Armadillo function is howerever much faster than mine, as the time elapsed is less than a 
+second for all 
+the $n's$ I 
+have tested. I've also listed the number of iterations used by Jacobi's algorithm, which we 
+see approximately quadruples
+when $n$ doubles.
+
+\section*{Two electrons with repulsive Coulomb interaction}
+To study this problem we need to rewrite the Schr\"odinger equation. We introduce the relative 
+coordinate ${\bf r} = {\bf r}_1-{\bf r}_2$
+and the center-of-mass coordinate ${\bf R} = 1/2({\bf r}_1+{\bf r}_2)$.
+With these new coordinates, the radial Schr\"odinger equation reads
+\[
+\left(  -\frac{\hbar^2}{m} \frac{d^2}{dr^2} -\frac{\hbar^2}{4 m} \frac{d^2}{dR^2}+ \frac{1}{4} k r^2+  kR^2\right)u(r,R)  = E^{(2)} u(r,R).
+\]
+where the energies and masses of the electrons are summarized and where we're dealing with a two-electron 
+wave function
+$u(r,R)$ and two-electron energy $E^{(2)}$. We then add the repulsive Coulomb interaction 
+\[
+V(r_1,r_2) = \frac{\beta e^2}{|{\bf r}_1-{\bf r}_2|}=\frac{\beta e^2}{r},
+\]
+and make the same substitution $\rho = r/\alpha$ as before, arriving
+\[
+  -\frac{d^2}{d\rho^2} \psi(\rho) 
+       + \frac{1}{4}\frac{mk}{\hbar^2} \alpha^4\rho^2\psi(\rho)+\frac{m\alpha \beta e^2}{\rho\hbar^2}\psi(\rho)  = 
+\frac{m\alpha^2}{\hbar^2}E_r \psi(\rho) .
+\]
+We define a 'frequency' reflecting the strength of the oscillator potential
+\[
+\omega_r^2=\frac{1}{4}\frac{mk}{\hbar^2} \alpha^4,
+\]
+and fix the constant $\alpha$ in a similar way, defining
+\[
+\lambda = \frac{m\alpha^2}{\hbar^2}E,
+\]
+and Schr\"odinger's equation now reads 
+\[
+  -\frac{d^2}{d\rho^2} \psi(\rho) + \omega_r^2\rho^2\psi(\rho) +\frac{1}{\rho}\psi(\rho) = \lambda \psi(\rho).
+\]
+To solve this equation I use the same code as before while changing the potential to $\omega_r^2\rho^2+1/\rho$.
+
+My results for $n = 150$ and $\rho_{max} = 4.5$ are as follows (compiled in the same way):
+
+omega_r = 0.01; Eigenvalues Jacobi: 0.98635, 2.61287, 5.14763
+
+omega_r = 0.5; Eigenvalues Jacobi: 2.23596, 4.26942, 6.86334
+
+omega_r = 1; Eigenvalues Jacobi: 4.05759, 7.90858, 11.8246
+
+omega_r = 5; Eigenvalues Jacobi: 17.4414, 37.0376, 56.7704
+
+We see that the eigenvalue for the ground state increases with increasing $\omega_r$. The two-electron energy is 
+in other words larger when the oscillator potential is stronger, as expected. When $\omega_r$ increases 
+the potential curve becomes steeper, and the electrons will have a larger energy compared to a more 
+shallow potential. 
+
+The above equation has answers in closed form only for specific oscillator frequencies, 
+but I've not been able to access the article linked in the project text, which means that I 
+don't have any energy values to compare with. 
+
+\subsection*{Plots of wavefunctions}
+The wavefunctions $u^{(\lambda_j)}(\rho)$ are the eigenvectors of ${\bf A}$, one for each eigenvalue. 
+According to linear algebra the columns of ${\bf S}$ will contain the eigenvectors of ${\bf A}$ when 
+all the necessary rotations are performed:
+\[   
+   {\bf S}^T {\bf A} {\bf S} = {\bf D} \rightarrow {\bf A} {\bf S} = {\bf S} {\bf D}
+\]
+which is equivalent to
+\[
+   {\bf A}{\bf S(:,j)} = \lambda_j{\bf S(:,j)} \ for j = 1:n
+\]
+The rotation of ${\bf S}$ can be thought of as ${\bf I}{\bf S} = {\bf S}$, and the resultant transformation can be implemented in the script, although I got wrong results when I tried this. Instead I've used the Armadillo function 
+eig_sym to also obtain the eigenvectors. I've written the eigenvectors/wavefunctions corresponding to 
+the three lowest eigenvectors to a file, and used Python to plot them. 
+
+\begin{figure}[hbt]
+\begin{center}
+\fbox{\includegraphics[width=\textwidth]{fig1.eps}}
+\end{center}
+\end{figure} 
+
+\begin{figure}[hbt]
+\begin{center}
+\fbox{\includegraphics[width=\textwidth]{fig2.eps}}
+\end{center}
+\end{figure} 
+
+\begin{figure}[hbt]
+\begin{center}
+\fbox{\includegraphics[width=\textwidth]{fig3.eps}}
+\end{center}
+\end{figure} 
+
+\begin{figure}[hbt]
+\begin{center}
+\fbox{\includegraphics[width=\textwidth]{fig4.eps}}
+\end{center}
+\end{figure} 
+
+\begin{figure}[hbt]
+\begin{center}
+\fbox{\includegraphics[width=\textwidth]{fig5.eps}}
+\end{center}
+\end{figure} 
+
+For both one and two electrons we see that the wavefunctions have one more node for each excited state, 
+which is in fact predicted by quantum mechanics. For two electrons, the wavefunction depends on the 
+strength $\omega_r$ of the harmonic oscillator potential. For $\omega_r = 0.01$ the wavefunction 
+stretches further out from zero, which is natural considering that the "equilibrium force" in this 
+case is weaker. The wavefunction is generally wider when we have repulsive Coulomb interaction 
+(except for $\omega_r = 5.0$, when the potential is so strong that it keeps the electrons close to zero) 
+which is obviously due to electrons with the same charge repulsing each other. 
+
+\section*{List of programs}
+The c++ script that solves Schr\"odinger's equation is \textit{main.cpp}, while the python 
+script \textit{plot2.py} plots the wavefunctions. These programs can be found here: 
+https://github.com/johnands/Project2. 
+
+
+
+
+
+
+\end{document}
+
+
+
+
